@@ -1,0 +1,43 @@
+Name: Geogos
+VersionScript: git describe --tags 2> /dev/null
+SourceDir: src/gitlab.subito.int/development/geogos
+Type: supervisored
+SharedDirMountPoint: /data/
+Ports:
+    9996: 9996
+RemoteRepo:
+  Repo: git@gitlab.subito.int:development/geogos.git
+  Type: source
+CheckRunning: echo "check-status";  curl -o /dev/null --silent --write-out '%{http_code}\n' http://localhost:9996/v1/geo/regions
+Distribute:
+  Run:
+    Image: mesos-registry.subito.dev:5000/geogos
+    ExportedFiles:
+      - geo
+Envs:
+  GOPATH: /data/:/data/govendor
+  SERVICE_PORT: 9996
+RunLinks:
+  Core: trans
+Images:
+  Default: mesos-registry.subito.dev:5000/regress_golang
+  External: mesos-registry.subito.dev:5000/regress_behave
+  Lint: mesos-registry.subito.dev:5000/regress_behave
+  Lint2: mesos-registry.subito.dev:5000/regress_behave
+Commands: #runs with with -rm=true
+  Command: { Type: Base, Command: "go build -ldflags \"-X main.ServiceVersion {{.VersionNumber}}\" geo.go" }
+  Unit: 
+    Command: go test -v src/...
+  Lint:
+    Type: Base 
+    Command: gometalinter -D gotype .
+  Lint2: 
+    Type: Base
+    Command: gometalinter -D gotype src/geogos
+  Wip:
+    Type: External
+    Command: behave -k -t @wip integration/features
+  External:
+    Type: External
+    Command: behave -k -t ~@nyi integration/features
+Run:  ./geo -address=:9996 -syslog=false -trans=trans:20205
