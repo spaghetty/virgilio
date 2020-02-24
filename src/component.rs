@@ -4,6 +4,7 @@ use serde::Deserialize;
 use std::fs::File;
 use std::error::Error;
 use std::fmt;
+use std::io::Read;
 use std::collections::HashMap;
 
 
@@ -37,7 +38,8 @@ impl Error for LoadError {
 #[serde(default)]
 pub struct Component {
     Name: String,
-    VersionScript: String,
+    #[serde(flatten)]
+    Version: VersionType,
     SourceDir: String,
     Type: CmptType,
     SharedDirMountPoint: String,
@@ -50,6 +52,15 @@ pub struct Component {
     Commands: HashMap<String, CommandType>,
     Run: String,
 }
+
+#[derive(Deserialize, Debug, PartialEq, Default)]
+#[allow(non_snake_case)]
+#[serde(default)]
+pub struct VersionType {
+    VersionNumber: String,
+    VersionScript: String,
+}
+
 
 #[derive(Deserialize, Debug, PartialEq)]
 #[allow(non_camel_case_types)]
@@ -69,7 +80,7 @@ impl Default for CmptType {
 pub enum RepoType {
     source,
     built,
-    build,
+    builded,
 }
 
 impl Default for RepoType {
@@ -111,12 +122,15 @@ impl Default for TypeCommandType {
         TypeCommandType::Base 
     }
 }
+pub fn load_from_reader<R: Read>(cmpt: R) -> Result<Component, Box<dyn Error>> {
+    let cmpt_obj: Component = serde_yaml::from_reader(cmpt).unwrap();
+    Ok(cmpt_obj)
+}
 
 pub fn load_from(cmpt: &Path) -> Result<Component,Box<dyn Error>> {
     if cmpt.exists() && cmpt.is_file() {
         let file = File::open(cmpt)?;
-        let cmpt_obj: Component = serde_yaml::from_reader(file).unwrap();
-        Ok(cmpt_obj)
+        load_from_reader(file)
     } else {
         Err(Box::new(LoadError::NoCmptFile{name: String::from(cmpt.to_string_lossy())}))
     }
@@ -125,11 +139,11 @@ pub fn load_from(cmpt: &Path) -> Result<Component,Box<dyn Error>> {
 
 #[test]
 fn load_from_path() {
-    let source = Path::new("./resources/virgilio_cpt.yaml");
+    let source = Path::new("./resources/Component.yaml");
     let dest = load_from(source);
     if let Ok(i) = dest {
         assert_eq!("Geogos", i.Name);
-        assert_eq!("git describe --tags 2> /dev/null", i.VersionScript);
+        assert_eq!("git describe --tags 2> /dev/null", i.Version.VersionScript);
         assert_eq!("src/gitlab.subito.int/development/geogos", i.SourceDir);
         assert!(CmptType::supervisored == i.Type);
         let port_mapped = i.Ports.get(&9996);
@@ -170,5 +184,36 @@ fn load_from_path() {
 
     } else {
         assert!(false, format!("{:?}",dest.unwrap_err()))
+    }
+}
+
+#[test]
+fn load_from_string() {
+    let raw_cmpt = r###"
+    Name: MainDB                     #component name
+    VersionNumber: "9.5"               #service version
+    RemoteRepo:
+        Repo: ''
+        Type: builded                  #builded components means just to get an image
+        Reference: "9.5"                 #version used for builded image
+    CheckRunning: psql -U postgres -h localhost -l | grep "\<postgres\>" ; exit \$? #command that will check if the component is running
+    Distribute:
+        Run:
+            Run: IMG_DEFAULT
+            Image: 'postgres'
+    Run: IMG_DEFAULT
+    Commands:
+        BashIn:
+            Type: 'Exec'
+            Command: bash
+            Interactive: true
+    "###;
+    let dest = load_from_reader(raw_cmpt.as_bytes());
+    if let Ok(cmpt) = dest {
+        assert_eq!("MainDB", cmpt.Name);
+        assert_eq!("9.5", cmpt.Version.VersionNumber);
+        assert!(cmpt.Version.VersionScript.is_empty());
+    } else {
+        assert!(false, format!("{:?}", dest.unwrap_err()));
     }
 }
