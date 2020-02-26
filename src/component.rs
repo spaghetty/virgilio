@@ -1,5 +1,5 @@
 // this module is useful to deal with a single component
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use serde::Deserialize;
 use std::fs::File;
 use std::error::Error;
@@ -50,7 +50,7 @@ pub struct Component {
     RunLinks: HashMap<String, String>,
     Images: HashMap<String, String>,
     Commands: HashMap<String, CommandType>,
-    Run: String,
+    pub Run: String,
 }
 
 #[derive(Deserialize, Debug, PartialEq, Default)]
@@ -127,6 +127,9 @@ pub fn load_from_reader<R: Read>(cmpt: R) -> Result<Component, Box<dyn Error>> {
     Ok(cmpt_obj)
 }
 
+pub fn load_from_pathbuf(cmpt: &PathBuf) -> Result<Component,Box<dyn Error>> {
+    load_from(Path::new(cmpt))
+}
 pub fn load_from(cmpt: &Path) -> Result<Component,Box<dyn Error>> {
     if cmpt.exists() && cmpt.is_file() {
         let file = File::open(cmpt)?;
