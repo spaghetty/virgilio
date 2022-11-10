@@ -34,7 +34,7 @@ impl Error for LoadError {
 
 
 #[derive(Deserialize, Debug, Default)]
-#[allow(non_snake_case)]
+#[allow(non_snake_case, dead_code)] //dead_code support to be removed soon
 #[serde(default)]
 pub struct Component {
     Name: String,
@@ -186,7 +186,7 @@ fn load_from_path() {
         assert_eq!("./geo -address=:9996 -syslog=false -trans=trans:20205",i.Run)
 
     } else {
-        assert!(false, format!("{:?}",dest.unwrap_err()))
+        assert!(false, "{:?}",dest.unwrap_err())
     }
 }
 
@@ -217,6 +217,6 @@ fn load_from_string() {
         assert_eq!("9.5", cmpt.Version.VersionNumber);
         assert!(cmpt.Version.VersionScript.is_empty());
     } else {
-        assert!(false, format!("{:?}", dest.unwrap_err()));
+        assert!(false, "{:?}", dest.unwrap_err());
     }
 }
